@@ -13,13 +13,13 @@ const COLUMNS: ColumnType[] = [
 ];
 
 async function fetchTasks(): Promise<Task[]> {
-  const response = await fetch('http://localhost:8000/api/tasks/gettasks');
+  const response = await fetch('https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks/gettasks');
   if (!response.ok) throw new Error('Failed to fetch tasks');
   return response.json();
 }
 
 async function addTaskToDB(task: Task) {
-  const response = await fetch('http://localhost:8000/api/tasks/addtasks', {
+  const response = await fetch('https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks/addtasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task),
@@ -29,7 +29,7 @@ async function addTaskToDB(task: Task) {
 }
 
 async function updateTaskStatusInDB(task: Task): Promise<Task> {
-  const response = await fetch(`http://localhost:8000/api/tasks/updatetask/${task.id}`, {
+  const response = await fetch(`https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks/updatetask/${task.id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: task.status }),
@@ -39,7 +39,7 @@ async function updateTaskStatusInDB(task: Task): Promise<Task> {
 }
 
 async function deleteTaskStatusInDB(task: Task): Promise<Task> {
-  const response = await fetch(`http://localhost:8000/api/tasks/deletetask/${task.id}`, {
+  const response = await fetch(`https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks/deletetask/${task.id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: task.status }),
@@ -69,7 +69,7 @@ export default function App() {
   const updateTaskMutation = useMutation({
     mutationFn: updateTaskStatusInDB,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] }); // Refetch tasks after update
+      queryClient.invalidateQueries({ queryKey: ['tasks'] }); 
     },
   });
 
