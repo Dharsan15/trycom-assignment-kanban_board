@@ -112,7 +112,7 @@ export default function App() {
   if (error) return <p>Error loading tasks</p>;
 
   return (
-    <div className={`w-full h-svh transition-all ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-black'}`}>
+    <div className={`w-full h-full transition-all ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-black'}`}>
       <div className='text-center text-3xl font-bold pt-10 flex justify-between items-center px-6'>
         <span>Kanban Board</span>
         <button onClick={() => setDarkMode(!darkMode)} className='text-2xl'>
