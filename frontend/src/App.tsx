@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Task, Column as ColumnType } from './utils/type';
 import { Column } from './components/Column';
-import { DndContext, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
 import { FaSun, FaMoon } from 'react-icons/fa';
 import { v4 as uuidv4 } from 'uuid';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -42,11 +42,9 @@ async function deleteTaskStatusInDB(task: Task): Promise<Task> {
   const response = await fetch(`https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks/deletetask/${task.id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: task.status }),
   });
-  console.log(task.id);
   
-  if (!response.ok) throw new Error('Failed to update task status');
+  if (!response.ok) throw new Error('Failed to delete task');
   return response.json();
 }
 
@@ -69,7 +67,7 @@ export default function App() {
   const updateTaskMutation = useMutation({
     mutationFn: updateTaskStatusInDB,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] }); 
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
@@ -81,9 +79,19 @@ export default function App() {
     }
   }, [darkMode]);
 
+  // Enable mobile-friendly drag & drop
+  const sensors = useSensors(
+    useSensor(PointerSensor), // For mouse
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200, // Prevents accidental drag
+        tolerance: 5, // Small movement before activating
+      },
+    })
+  );
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-
     if (!over) return;
 
     const taskId = active.id as string;
@@ -93,7 +101,6 @@ export default function App() {
     if (!task) return;
 
     const updatedTask = { ...task, status: newStatus };
-
     updateTaskMutation.mutate(updatedTask);
   }
 
@@ -112,8 +119,7 @@ export default function App() {
   if (error) return <p>Error loading tasks</p>;
 
   return (
-    <div className='w-full h-full' >
-         <div className={`w-full h-full transition-all ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-black'}`}>
+    <div className={`w-full h-screen transition-all ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-black'} overflow-y-auto`}>
       <div className='text-center text-3xl font-bold pt-10 flex justify-between items-center px-6'>
         <span>Kanban Board</span>
         <button onClick={() => setDarkMode(!darkMode)} className='text-2xl'>
@@ -146,20 +152,18 @@ export default function App() {
       </div>
 
       <div className='flex flex-wrap justify-center mt-4 p-4 gap-4'>
-        <DndContext onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           {COLUMNS.map((column) => (
             <Column
               darkMode={darkMode}
               key={column.id}
               column={column}
               tasks={tasks.filter((task) => task.status === column.id)}
-              deleteTaskStatusInDB = {deleteTaskStatusInDB}
+              deleteTaskStatusInDB={deleteTaskStatusInDB}
             />
           ))}
         </DndContext>
       </div>
-    </div>
-
     </div>
   );
 }
