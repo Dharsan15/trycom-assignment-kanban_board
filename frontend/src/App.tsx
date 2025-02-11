@@ -16,22 +16,16 @@ const API_BASE_URL = 'https://trycom-assignment-kanban-board-backend-2.onrender.
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const queryClient = useQueryClient();
 
-  // Fetch tasks from API
-  const { data, isLoading, error } = useQuery({
+  const { data: tasks = [], isLoading, error } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE_URL}/gettasks`);
       return res.json();
     },
-    onSuccess: (fetchedTasks) => {
-      setTasks(fetchedTasks); // Update local state for smooth UI updates
-    },
   });
 
-  // Mutation for adding a task
   const addTaskMutation = useMutation({
     mutationFn: async (task: Task) => {
       const res = await fetch(`${API_BASE_URL}/addtasks`, {
@@ -41,13 +35,11 @@ export default function App() {
       });
       return res.json();
     },
-    onSuccess: (newTask) => {
-      queryClient.setQueryData(['tasks'], (oldTasks: Task[] = []) => [...oldTasks, newTask]);
-      setTasks((prevTasks) => [...prevTasks, newTask]); // Optimistically update UI
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
-  // Mutation for updating task status
   const updateTaskMutation = useMutation({
     mutationFn: async (task: Task) => {
       const res = await fetch(`${API_BASE_URL}/updatetask/${task.id}`, {
@@ -57,29 +49,27 @@ export default function App() {
       });
       return res.json();
     },
-    onSuccess: (updatedTask) => {
-      queryClient.setQueryData(['tasks'], (oldTasks: Task[] = []) =>
-        oldTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t))
-      );
-      setTasks((prevTasks) => prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t))); // Optimistic update
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
-  // Mutation for deleting a task
   const deleteTaskMutation = useMutation({
-    mutationFn: async (taskId: string) => {
-      await fetch(`${API_BASE_URL}/deletetask/${taskId}`, { method: 'DELETE' });
-      return taskId;
+    mutationFn: async (task: Task) => {
+      await fetch(`${API_BASE_URL}/deletetask/${task.id}`, {
+        method: 'DELETE',
+      });
     },
-    onSuccess: (deletedTaskId) => {
-      queryClient.setQueryData(['tasks'], (oldTasks: Task[] = []) =>
-        oldTasks.filter((task) => task.id !== deletedTaskId)
+    onMutate: (deletedTask) => {
+      queryClient.setQueryData(['tasks'], (oldTasks: Task[]) =>
+        oldTasks.filter((t) => t.id !== deletedTask.id)
       );
-      setTasks((prevTasks) => prevTasks.filter((task) => task.id !== deletedTaskId)); // Optimistic update
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
-  // Handle Dark Mode Toggle
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -88,68 +78,45 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // Disable scrolling during drag on mobile
-  useEffect(() => {
-    const disableScroll = (event: TouchEvent) => {
-      event.preventDefault();
-    };
-
-    document.addEventListener('touchmove', disableScroll, { passive: false });
-
-    return () => {
-      document.removeEventListener('touchmove', disableScroll);
-    };
-  }, []);
-
-  // Drag-and-drop sensors with optimized touch settings
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // Prevent accidental drags
+        delay: 250, 
+        tolerance: 5, 
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 250, // Hold for 250ms before dragging
-        tolerance: 10, // Prevent unintended drags
+        delay: 250, 
+        tolerance: 5, 
       },
     })
   );
 
-  // Handle Drag-and-Drop
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
+    console.log('DragEndEvent:', event); 
+
     if (!over) return;
 
     const taskId = active.id as string;
     const newStatus = over.id as Task['status'];
 
-    const task = tasks.find((task) => task.id === taskId);
-    if (!task || task.status === newStatus) return;
+    const task = tasks.find((task : Task) => task.id === taskId);
+    if (!task) return;
 
     const updatedTask = { ...task, status: newStatus };
-
-    // Optimistically update UI before syncing with DB
-    setTasks((prevTasks) => prevTasks.map((t) => (t.id === taskId ? updatedTask : t)));
-
     updateTaskMutation.mutate(updatedTask);
   }
 
   function addTask(title: string, description: string, columnId: string) {
     if (!title.trim() || !description.trim()) return;
-    const newTask: Task = {
-      id: uuidv4(),
-      title,
-      description,
-      status: columnId as Task['status'],
-    };
-
-    setTasks((prevTasks) => [...prevTasks, newTask]); // Optimistic update
+    const newTask: Task = { id: uuidv4(), title, description, status: columnId as Task['status'] };
     addTaskMutation.mutate(newTask);
   }
 
   if (isLoading) return <p>Loading tasks...</p>;
-  if (error) return <p>Failed to load tasks</p>;
+  if (error) return <p>Failed to fetch tasks</p>;
 
   return (
     <div className={`w-full h-screen transition-all ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-black'} overflow-y-auto`}>
@@ -187,7 +154,13 @@ export default function App() {
       <div className='flex flex-wrap justify-center mt-4 p-4 gap-4'>
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           {COLUMNS.map((column) => (
-            <Column darkMode={darkMode} key={column.id} column={column} tasks={tasks.filter((task) => task.status === column.id)} deleteTaskMutation={deleteTaskMutation} />
+            <Column
+              darkMode={darkMode}
+              key={column.id}
+              column={column}
+              tasks={tasks.filter((task : Task) => task.status === column.id)}
+              deleteTaskStatusInDB={deleteTaskMutation.mutate}
+            />
           ))}
         </DndContext>
       </div>
