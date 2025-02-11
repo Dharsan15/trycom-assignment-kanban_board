@@ -159,6 +159,7 @@ export default function App() {
               key={column.id}
               column={column}
               tasks={tasks.filter((task : Task) => task.status === column.id)}
+              //  @ts-ignore
               deleteTaskStatusInDB={deleteTaskMutation.mutate}
             />
           ))}

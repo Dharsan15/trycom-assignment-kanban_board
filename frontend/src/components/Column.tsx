@@ -5,7 +5,7 @@ import { Task } from '../utils/type';
 
 type ColumnProps = {
   column: { id: string; title: string };
-  deleteTaskStatusInDB :  (task: Task) => Promise<Task>;
+  deleteTaskStatusInDB :  (task: Task) => void;
   tasks: Task[];
   darkMode: boolean;
 };
