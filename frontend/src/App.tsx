@@ -12,65 +12,74 @@ const COLUMNS: ColumnType[] = [
   { id: 'DONE', title: 'Done' },
 ];
 
-async function fetchTasks(): Promise<Task[]> {
-  const response = await fetch('https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks/gettasks');
-  if (!response.ok) throw new Error('Failed to fetch tasks');
-  return response.json();
-}
-
-async function addTaskToDB(task: Task) {
-  const response = await fetch('https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks/addtasks', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(task),
-  });
-  if (!response.ok) throw new Error('Failed to add task');
-  return response.json();
-}
-
-async function updateTaskStatusInDB(task: Task): Promise<Task> {
-  const response = await fetch(`https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks/updatetask/${task.id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: task.status }),
-  });
-  if (!response.ok) throw new Error('Failed to update task status');
-  return response.json();
-}
-
-async function deleteTaskStatusInDB(task: Task): Promise<Task> {
-  const response = await fetch(`https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks/deletetask/${task.id}`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-  });
-  
-  if (!response.ok) throw new Error('Failed to delete task');
-  return response.json();
-}
+const API_BASE_URL = 'https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks';
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const queryClient = useQueryClient();
 
-  const { data: tasks = [], isLoading, error } = useQuery<Task[]>({
+  // Fetch tasks from API
+  const { data, isLoading, error } = useQuery({
     queryKey: ['tasks'],
-    queryFn: fetchTasks,
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE_URL}/gettasks`);
+      return res.json();
+    },
+    onSuccess: (fetchedTasks) => {
+      setTasks(fetchedTasks); // Update local state for smooth UI updates
+    },
   });
 
+  // Mutation for adding a task
   const addTaskMutation = useMutation({
-    mutationFn: addTaskToDB,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    mutationFn: async (task: Task) => {
+      const res = await fetch(`${API_BASE_URL}/addtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task),
+      });
+      return res.json();
+    },
+    onSuccess: (newTask) => {
+      queryClient.setQueryData(['tasks'], (oldTasks: Task[] = []) => [...oldTasks, newTask]);
+      setTasks((prevTasks) => [...prevTasks, newTask]); // Optimistically update UI
     },
   });
 
+  // Mutation for updating task status
   const updateTaskMutation = useMutation({
-    mutationFn: updateTaskStatusInDB,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    mutationFn: async (task: Task) => {
+      const res = await fetch(`${API_BASE_URL}/updatetask/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: task.status }),
+      });
+      return res.json();
+    },
+    onSuccess: (updatedTask) => {
+      queryClient.setQueryData(['tasks'], (oldTasks: Task[] = []) =>
+        oldTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+      );
+      setTasks((prevTasks) => prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t))); // Optimistic update
     },
   });
 
+  // Mutation for deleting a task
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      await fetch(`${API_BASE_URL}/deletetask/${taskId}`, { method: 'DELETE' });
+      return taskId;
+    },
+    onSuccess: (deletedTaskId) => {
+      queryClient.setQueryData(['tasks'], (oldTasks: Task[] = []) =>
+        oldTasks.filter((task) => task.id !== deletedTaskId)
+      );
+      setTasks((prevTasks) => prevTasks.filter((task) => task.id !== deletedTaskId)); // Optimistic update
+    },
+  });
+
+  // Handle Dark Mode Toggle
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -79,17 +88,35 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // Enable mobile-friendly drag & drop
+  // Disable scrolling during drag on mobile
+  useEffect(() => {
+    const disableScroll = (event: TouchEvent) => {
+      event.preventDefault();
+    };
+
+    document.addEventListener('touchmove', disableScroll, { passive: false });
+
+    return () => {
+      document.removeEventListener('touchmove', disableScroll);
+    };
+  }, []);
+
+  // Drag-and-drop sensors with optimized touch settings
   const sensors = useSensors(
-    useSensor(PointerSensor), // For mouse
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Prevent accidental drags
+      },
+    }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 200, // Prevents accidental drag
-        tolerance: 5, // Small movement before activating
+        delay: 250, // Hold for 250ms before dragging
+        tolerance: 10, // Prevent unintended drags
       },
     })
   );
 
+  // Handle Drag-and-Drop
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
@@ -98,9 +125,13 @@ export default function App() {
     const newStatus = over.id as Task['status'];
 
     const task = tasks.find((task) => task.id === taskId);
-    if (!task) return;
+    if (!task || task.status === newStatus) return;
 
     const updatedTask = { ...task, status: newStatus };
+
+    // Optimistically update UI before syncing with DB
+    setTasks((prevTasks) => prevTasks.map((t) => (t.id === taskId ? updatedTask : t)));
+
     updateTaskMutation.mutate(updatedTask);
   }
 
@@ -112,11 +143,13 @@ export default function App() {
       description,
       status: columnId as Task['status'],
     };
+
+    setTasks((prevTasks) => [...prevTasks, newTask]); // Optimistic update
     addTaskMutation.mutate(newTask);
   }
 
   if (isLoading) return <p>Loading tasks...</p>;
-  if (error) return <p>Error loading tasks</p>;
+  if (error) return <p>Failed to load tasks</p>;
 
   return (
     <div className={`w-full h-screen transition-all ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-black'} overflow-y-auto`}>
@@ -154,13 +187,7 @@ export default function App() {
       <div className='flex flex-wrap justify-center mt-4 p-4 gap-4'>
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           {COLUMNS.map((column) => (
-            <Column
-              darkMode={darkMode}
-              key={column.id}
-              column={column}
-              tasks={tasks.filter((task) => task.status === column.id)}
-              deleteTaskStatusInDB={deleteTaskStatusInDB}
-            />
+            <Column darkMode={darkMode} key={column.id} column={column} tasks={tasks.filter((task) => task.status === column.id)} deleteTaskMutation={deleteTaskMutation} />
           ))}
         </DndContext>
       </div>
