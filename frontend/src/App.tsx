@@ -12,7 +12,7 @@ const COLUMNS: ColumnType[] = [
   { id: 'DONE', title: 'Done' },
 ];
 
-const API_BASE_URL = 'http://localhost:8000/api/tasks';
+const API_BASE_URL = 'https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks';
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
