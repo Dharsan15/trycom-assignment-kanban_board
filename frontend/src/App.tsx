@@ -12,17 +12,21 @@ const COLUMNS: ColumnType[] = [
   { id: 'DONE', title: 'Done' },
 ];
 
-const API_BASE_URL = 'https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks';
+const API_BASE_URL = 'http://localhost:8000/api/tasks';
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
+  const [localTasks, setLocalTasks] = useState<Task[]>([]); 
   const queryClient = useQueryClient();
 
-  const { data: tasks = [], isLoading, error } = useQuery({
+ const { data: fetchedTasks = [], isLoading, error } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE_URL}/gettasks`);
       return res.json();
+    },
+    onSuccess : (data) => {
+      setLocalTasks(data);
     },
   });
 
@@ -60,15 +64,57 @@ export default function App() {
         method: 'DELETE',
       });
     },
-    onMutate: (deletedTask) => {
-      queryClient.setQueryData(['tasks'], (oldTasks: Task[]) =>
-        oldTasks.filter((t) => t.id !== deletedTask.id)
-      );
-    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
+
+  useEffect(() => {
+    if (fetchedTasks.length > 0) {
+      setLocalTasks(fetchedTasks);
+    }
+  }, [fetchedTasks]);
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (!over) return;
+
+    const taskId = active.id as string;
+    const newStatus = over.id as Task['status'];
+
+    const task = localTasks.find((task) => task.id === taskId);
+    if (!task) return;
+
+    const updatedTask = { ...task, status: newStatus };
+
+    setLocalTasks((prevTasks) =>
+      prevTasks.map((t) => (t.id === taskId ? updatedTask : t))
+    );
+
+    updateTaskMutation.mutate(updatedTask);
+  }
+
+  function addTask(title: string, description: string, columnId: string) {
+    if (!title.trim() || !description.trim()) return;
+
+    const newTask: Task = {
+      id: uuidv4(),
+      title,
+      description,
+      status: columnId as Task['status'],
+    };
+
+    setLocalTasks((prevTasks) => [...prevTasks, newTask]);
+
+    addTaskMutation.mutate(newTask);
+  }
+
+  function deleteTask(task: Task) {
+    setLocalTasks((prevTasks) => prevTasks.filter((t) => t.id !== task.id));
+
+    deleteTaskMutation.mutate({ id: task.id } as Task);
+  }
 
   useEffect(() => {
     if (darkMode) {
@@ -81,39 +127,17 @@ export default function App() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 250, 
-        tolerance: 5, 
+        delay: 150,
+        tolerance: 5,
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 250, 
-        tolerance: 5, 
+        delay: 150,
+        tolerance: 5,
       },
     })
   );
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    console.log('DragEndEvent:', event); 
-
-    if (!over) return;
-
-    const taskId = active.id as string;
-    const newStatus = over.id as Task['status'];
-
-    const task = tasks.find((task : Task) => task.id === taskId);
-    if (!task) return;
-
-    const updatedTask = { ...task, status: newStatus };
-    updateTaskMutation.mutate(updatedTask);
-  }
-
-  function addTask(title: string, description: string, columnId: string) {
-    if (!title.trim() || !description.trim()) return;
-    const newTask: Task = { id: uuidv4(), title, description, status: columnId as Task['status'] };
-    addTaskMutation.mutate(newTask);
-  }
 
   if (isLoading) return <p>Loading tasks...</p>;
   if (error) return <p>Failed to fetch tasks</p>;
@@ -158,9 +182,8 @@ export default function App() {
               darkMode={darkMode}
               key={column.id}
               column={column}
-              tasks={tasks.filter((task : Task) => task.status === column.id)}
-              //  @ts-ignore
-              deleteTaskStatusInDB={deleteTaskMutation.mutate}
+              tasks={localTasks.filter((task) => task.status === column.id)}
+              deleteTaskStatusInDB={deleteTask}
             />
           ))}
         </DndContext>
