@@ -16,20 +16,26 @@ const API_BASE_URL = 'http://localhost:8000/api/tasks';
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
-  const [localTasks, setLocalTasks] = useState<Task[]>([]); 
+  const [localTasks, setLocalTasks] = useState<Task[]>([]); // Local state for tasks
   const queryClient = useQueryClient();
 
- const { data: fetchedTasks = [], isLoading, error } = useQuery({
+  // Fetch tasks from the server
+  const { data: fetchedTasks = [], isLoading, error } = useQuery<Task[]>({
     queryKey: ['tasks'],
-    queryFn: async () => {
+    queryFn: async (): Promise<Task[]> => {
       const res = await fetch(`${API_BASE_URL}/gettasks`);
       return res.json();
     },
-    onSuccess : (data) => {
-      setLocalTasks(data);
-    },
   });
 
+  // Update localTasks when fetchedTasks changes
+  useEffect(() => {
+    if (fetchedTasks.length > 0) {
+      setLocalTasks(fetchedTasks);
+    }
+  }, [fetchedTasks]);
+
+  // Mutation to add a task
   const addTaskMutation = useMutation({
     mutationFn: async (task: Task) => {
       const res = await fetch(`${API_BASE_URL}/addtasks`, {
@@ -44,6 +50,7 @@ export default function App() {
     },
   });
 
+  // Mutation to update a task
   const updateTaskMutation = useMutation({
     mutationFn: async (task: Task) => {
       const res = await fetch(`${API_BASE_URL}/updatetask/${task.id}`, {
@@ -58,6 +65,7 @@ export default function App() {
     },
   });
 
+  // Mutation to delete a task
   const deleteTaskMutation = useMutation({
     mutationFn: async (task: Task) => {
       await fetch(`${API_BASE_URL}/deletetask/${task.id}`, {
@@ -69,12 +77,7 @@ export default function App() {
     },
   });
 
-  useEffect(() => {
-    if (fetchedTasks.length > 0) {
-      setLocalTasks(fetchedTasks);
-    }
-  }, [fetchedTasks]);
-
+  // Handle drag-and-drop events
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
@@ -83,18 +86,23 @@ export default function App() {
     const taskId = active.id as string;
     const newStatus = over.id as Task['status'];
 
+    // Find the task being dragged
     const task = localTasks.find((task) => task.id === taskId);
     if (!task) return;
 
+    // Create an updated task
     const updatedTask = { ...task, status: newStatus };
 
+    // Update local state first for smooth UI rendering
     setLocalTasks((prevTasks) =>
       prevTasks.map((t) => (t.id === taskId ? updatedTask : t))
     );
 
+    // Sync with the database
     updateTaskMutation.mutate(updatedTask);
   }
 
+  // Add a new task
   function addTask(title: string, description: string, columnId: string) {
     if (!title.trim() || !description.trim()) return;
 
@@ -105,17 +113,23 @@ export default function App() {
       status: columnId as Task['status'],
     };
 
+    // Update local state first for smooth UI rendering
     setLocalTasks((prevTasks) => [...prevTasks, newTask]);
 
+    // Sync with the database
     addTaskMutation.mutate(newTask);
   }
 
-  function deleteTask(task: Task) {
+  // Delete a task
+  function deleteTask(task : Task) {
+    // Update local state first for smooth UI rendering
     setLocalTasks((prevTasks) => prevTasks.filter((t) => t.id !== task.id));
 
+    // Sync with the database
     deleteTaskMutation.mutate({ id: task.id } as Task);
   }
 
+  // Dark mode toggle
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -124,6 +138,7 @@ export default function App() {
     }
   }, [darkMode]);
 
+  // Sensors for drag-and-drop
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
