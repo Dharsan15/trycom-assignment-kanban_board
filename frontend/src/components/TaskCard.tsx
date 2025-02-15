@@ -30,7 +30,8 @@ export function TaskCard({ task, darkMode, deleteTask }: TaskCardProps) {
       <div className='flex justify-between items-center'>
         <h3 className='font-bold'>{task.title}</h3>
         <button
-  onMouseDown={(e) => e.stopPropagation()} // Prevents triggering drag
+  onMouseDown={(e) => e.stopPropagation()} 
+  onTouchStart={(e) => e.stopPropagation()} 
   onClick={(e) => {
     e.stopPropagation();
     deleteTask(task);
@@ -39,6 +40,7 @@ export function TaskCard({ task, darkMode, deleteTask }: TaskCardProps) {
 >
   <FaTrash />
 </button>
+
 
       </div>
       <p className='mt-2 text-sm'>{task.description}</p>
