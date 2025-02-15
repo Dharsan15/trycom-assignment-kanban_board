@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Task, Column as ColumnType } from './utils/type';
 import { Column } from './components/Column';
-import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, useSensor, useSensors, MouseSensor, TouchSensor } from '@dnd-kit/core';
 import { FaSun, FaMoon } from 'react-icons/fa';
 import { v4 as uuidv4 } from 'uuid';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +12,9 @@ const COLUMNS: ColumnType[] = [
   { id: 'DONE', title: 'Done' },
 ];
 
- const API_BASE_URL = 'https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks';
+//  const API_BASE_URL = 'https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks';
+const API_BASE_URL = 'http://localhost:8000/api/tasks';
+
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
@@ -124,7 +126,7 @@ export default function App() {
   }, [darkMode]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
         delay: 50,
         tolerance: 5,
@@ -137,6 +139,7 @@ export default function App() {
       },
     })
   );
+  
 
   if (isLoading) return <p>Loading tasks...</p>;
   if (error) return <p>Failed to fetch tasks</p>;
