@@ -15,6 +15,7 @@ const COLUMNS: ColumnType[] = [
  const API_BASE_URL = 'https://trycom-assignment-kanban-board-backend-2.onrender.com/api/tasks';
 
 
+
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [localTasks, setLocalTasks] = useState<Task[]>([]); 
@@ -92,6 +93,29 @@ export default function App() {
 
     updateTaskMutation.mutate(updatedTask);
   }
+
+//   function handleDragEnd(event: DragEndEvent) {
+//   const { active, over } = event;
+
+//   // Ensure task is dragged to a valid drop target
+//   if (!over || active.id === over.id) return;
+
+//   const taskId = active.id as string;
+//   const newStatus = over.id as Task['status'];
+
+//   // Find the task by ID
+//   const task = localTasks.find((task) => task.id === taskId);
+//   if (!task || task.status === newStatus) return; // No change, don't update
+
+//   const updatedTask = { ...task, status: newStatus };
+
+//   setLocalTasks((prevTasks) =>
+//     prevTasks.map((t) => (t.id === taskId ? updatedTask : t))
+//   );
+
+//   updateTaskMutation.mutate(updatedTask);
+// }
+
 
   function addTask(title: string, description: string, columnId: string) {
     if (!title.trim() || !description.trim()) return;
